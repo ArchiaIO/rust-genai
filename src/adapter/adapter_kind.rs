@@ -163,6 +163,7 @@ impl AdapterKind {
 	/// Note: At this point, this will never fail as the fallback is the Ollama adapter.
 	///       This might change in the future, hence the Result return type.
 	pub fn from_model(model: &str) -> Result<Self> {
+		tracing::debug!("AdapterKind::from_model called with model: {}", model);
 		// -- First check if namespaced
 		if let (_, Some(ns)) = ModelName::model_name_and_namespace(model) {
 			if let Some(adapter) = Self::from_lower_str(ns) {
@@ -195,6 +196,7 @@ impl AdapterKind {
 			|| model.starts_with("ap.anthropic.")
 			|| model.starts_with("global.anthropic.")
 		{
+			tracing::debug!("Detected as Bedrock adapter for model: {}", model);
 			Ok(Self::Bedrock)
 		} else if model.starts_with("claude") {
 			Ok(Self::Anthropic)
@@ -213,6 +215,10 @@ impl AdapterKind {
 		}
 		// For now, fallback to Ollama
 		else {
+			tracing::debug!(
+				"No specific adapter matched, falling back to Ollama for model: {}",
+				model
+			);
 			Ok(Self::Ollama)
 		}
 	}
