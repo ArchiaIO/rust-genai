@@ -58,7 +58,7 @@ impl Adapter for BedrockAdapter {
 
 	fn get_service_url(_model: &ModelIden, _service_type: ServiceType, endpoint: Endpoint) -> Result<String> {
 		// For Bedrock, the URL is typically set via ServiceTargetResolver
-		// The endpoint might be a secured proxy that handles the AWS-specific routing
+		// The endpoint might be a custom proxy that handles the AWS-specific routing
 		// We just return the base_url as-is since proxies handle the path construction
 		Ok(endpoint.base_url().to_string())
 	}
@@ -83,7 +83,7 @@ impl Adapter for BedrockAdapter {
 			("Content-Type".to_string(), "application/json".to_string()),
 		]);
 
-		// Merge extra headers if provided (e.g., X-SecuredHost, X-Op, X-Model-Id)
+		// Merge extra headers if provided (e.g., for custom proxy implementations)
 		if let Some(extra_headers) = options_set.extra_headers() {
 			headers.merge_with(extra_headers);
 		}
