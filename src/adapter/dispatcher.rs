@@ -1,6 +1,7 @@
 use super::groq::GroqAdapter;
 use crate::adapter::adapters::together::TogetherAdapter;
 use crate::adapter::anthropic::AnthropicAdapter;
+use crate::adapter::bedrock::BedrockAdapter;
 use crate::adapter::cohere::CohereAdapter;
 use crate::adapter::deepseek::DeepSeekAdapter;
 use crate::adapter::fireworks::FireworksAdapter;
@@ -34,6 +35,7 @@ impl AdapterDispatcher {
 			AdapterKind::OpenAIResp => OpenAIRespAdapter::default_endpoint(),
 			AdapterKind::Gemini => GeminiAdapter::default_endpoint(),
 			AdapterKind::Anthropic => AnthropicAdapter::default_endpoint(),
+			AdapterKind::Bedrock => BedrockAdapter::default_endpoint(),
 			AdapterKind::Fireworks => FireworksAdapter::default_endpoint(),
 			AdapterKind::Together => TogetherAdapter::default_endpoint(),
 			AdapterKind::Groq => GroqAdapter::default_endpoint(),
@@ -52,6 +54,7 @@ impl AdapterDispatcher {
 			AdapterKind::OpenAIResp => OpenAIRespAdapter::default_auth(),
 			AdapterKind::Gemini => GeminiAdapter::default_auth(),
 			AdapterKind::Anthropic => AnthropicAdapter::default_auth(),
+			AdapterKind::Bedrock => BedrockAdapter::default_auth(),
 			AdapterKind::Fireworks => FireworksAdapter::default_auth(),
 			AdapterKind::Together => TogetherAdapter::default_auth(),
 			AdapterKind::Groq => GroqAdapter::default_auth(),
@@ -70,6 +73,7 @@ impl AdapterDispatcher {
 			AdapterKind::OpenAIResp => OpenAIRespAdapter::all_model_names(kind).await,
 			AdapterKind::Gemini => GeminiAdapter::all_model_names(kind).await,
 			AdapterKind::Anthropic => AnthropicAdapter::all_model_names(kind).await,
+			AdapterKind::Bedrock => BedrockAdapter::all_model_names(kind).await,
 			AdapterKind::Fireworks => FireworksAdapter::all_model_names(kind).await,
 			AdapterKind::Together => TogetherAdapter::all_model_names(kind).await,
 			AdapterKind::Groq => GroqAdapter::all_model_names(kind).await,
@@ -88,6 +92,7 @@ impl AdapterDispatcher {
 			AdapterKind::OpenAIResp => OpenAIRespAdapter::get_service_url(model, service_type, endpoint),
 			AdapterKind::Gemini => GeminiAdapter::get_service_url(model, service_type, endpoint),
 			AdapterKind::Anthropic => AnthropicAdapter::get_service_url(model, service_type, endpoint),
+			AdapterKind::Bedrock => BedrockAdapter::get_service_url(model, service_type, endpoint),
 			AdapterKind::Fireworks => FireworksAdapter::get_service_url(model, service_type, endpoint),
 			AdapterKind::Together => TogetherAdapter::get_service_url(model, service_type, endpoint),
 			AdapterKind::Groq => GroqAdapter::get_service_url(model, service_type, endpoint),
@@ -116,6 +121,7 @@ impl AdapterDispatcher {
 			AdapterKind::Anthropic => {
 				AnthropicAdapter::to_web_request_data(target, service_type, chat_req, options_set)
 			}
+			AdapterKind::Bedrock => BedrockAdapter::to_web_request_data(target, service_type, chat_req, options_set),
 			AdapterKind::Fireworks => {
 				FireworksAdapter::to_web_request_data(target, service_type, chat_req, options_set)
 			}
@@ -140,6 +146,7 @@ impl AdapterDispatcher {
 			AdapterKind::OpenAIResp => OpenAIRespAdapter::to_chat_response(model_iden, web_response, options_set),
 			AdapterKind::Gemini => GeminiAdapter::to_chat_response(model_iden, web_response, options_set),
 			AdapterKind::Anthropic => AnthropicAdapter::to_chat_response(model_iden, web_response, options_set),
+			AdapterKind::Bedrock => BedrockAdapter::to_chat_response(model_iden, web_response, options_set),
 			AdapterKind::Fireworks => FireworksAdapter::to_chat_response(model_iden, web_response, options_set),
 			AdapterKind::Together => TogetherAdapter::to_chat_response(model_iden, web_response, options_set),
 			AdapterKind::Groq => GroqAdapter::to_chat_response(model_iden, web_response, options_set),
@@ -165,6 +172,7 @@ impl AdapterDispatcher {
 			}),
 			AdapterKind::Gemini => GeminiAdapter::to_chat_stream(model_iden, reqwest_builder, options_set),
 			AdapterKind::Anthropic => AnthropicAdapter::to_chat_stream(model_iden, reqwest_builder, options_set),
+			AdapterKind::Bedrock => BedrockAdapter::to_chat_stream(model_iden, reqwest_builder, options_set),
 			AdapterKind::Fireworks => FireworksAdapter::to_chat_stream(model_iden, reqwest_builder, options_set),
 			AdapterKind::Together => TogetherAdapter::to_chat_stream(model_iden, reqwest_builder, options_set),
 			AdapterKind::Groq => GroqAdapter::to_chat_stream(model_iden, reqwest_builder, options_set),
@@ -191,6 +199,7 @@ impl AdapterDispatcher {
 			}),
 			AdapterKind::Gemini => GeminiAdapter::to_embed_request_data(target, embed_req, options_set),
 			AdapterKind::Anthropic => AnthropicAdapter::to_embed_request_data(target, embed_req, options_set),
+			AdapterKind::Bedrock => BedrockAdapter::to_embed_request_data(target, embed_req, options_set),
 			AdapterKind::Fireworks => FireworksAdapter::to_embed_request_data(target, embed_req, options_set),
 			AdapterKind::Together => TogetherAdapter::to_embed_request_data(target, embed_req, options_set),
 			AdapterKind::Groq => GroqAdapter::to_embed_request_data(target, embed_req, options_set),
@@ -216,6 +225,7 @@ impl AdapterDispatcher {
 			}),
 			AdapterKind::Gemini => GeminiAdapter::to_embed_response(model_iden, web_response, options_set),
 			AdapterKind::Anthropic => AnthropicAdapter::to_embed_response(model_iden, web_response, options_set),
+			AdapterKind::Bedrock => BedrockAdapter::to_embed_response(model_iden, web_response, options_set),
 			AdapterKind::Fireworks => FireworksAdapter::to_embed_response(model_iden, web_response, options_set),
 			AdapterKind::Together => TogetherAdapter::to_embed_response(model_iden, web_response, options_set),
 			AdapterKind::Groq => GroqAdapter::to_embed_response(model_iden, web_response, options_set),

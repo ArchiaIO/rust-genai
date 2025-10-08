@@ -29,9 +29,11 @@ reqwest = {version = "0.12", default-features = false, features = ["json", "rust
 reqwest-eventsource = "0.6"
 eventsource-stream = "0.2"
 bytes = "1.6"
+# -- Encoding
+base64 = "0.22.0"  # For Bedrock adapter AWS event stream decoding
 # -- Others
 derive_more = { version = "2", features = ["from", "display"] }
-value-ext = "0.1.2" 
+value-ext = "0.1.2"
 
 [dev-dependencies]
 simple-fs = "0.8.0"

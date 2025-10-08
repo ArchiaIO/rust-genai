@@ -1,5 +1,6 @@
 use crate::adapter::adapters::together::TogetherAdapter;
 use crate::adapter::anthropic::AnthropicAdapter;
+use crate::adapter::bedrock::BedrockAdapter;
 use crate::adapter::cohere::CohereAdapter;
 use crate::adapter::deepseek::{self, DeepSeekAdapter};
 use crate::adapter::fireworks::FireworksAdapter;
@@ -27,6 +28,8 @@ pub enum AdapterKind {
 	Gemini,
 	/// Anthopric native protocol as well
 	Anthropic,
+	/// AWS Bedrock using Anthropic protocol with AWS event stream format
+	Bedrock,
 	/// For fireworks.ai, mostly OpenAI.
 	Fireworks,
 	/// Together AI (Mostly uses OpenAI-compatible protocol)
@@ -56,6 +59,7 @@ impl AdapterKind {
 			AdapterKind::OpenAIResp => "OpenAIResp",
 			AdapterKind::Gemini => "Gemini",
 			AdapterKind::Anthropic => "Anthropic",
+			AdapterKind::Bedrock => "Bedrock",
 			AdapterKind::Fireworks => "Fireworks",
 			AdapterKind::Together => "Together",
 			AdapterKind::Groq => "Groq",
@@ -75,6 +79,7 @@ impl AdapterKind {
 			AdapterKind::OpenAIResp => "openai_resp",
 			AdapterKind::Gemini => "gemini",
 			AdapterKind::Anthropic => "anthropic",
+			AdapterKind::Bedrock => "bedrock",
 			AdapterKind::Fireworks => "fireworks",
 			AdapterKind::Together => "together",
 			AdapterKind::Groq => "groq",
@@ -93,6 +98,7 @@ impl AdapterKind {
 			"openai_resp" => Some(AdapterKind::OpenAIResp),
 			"gemini" => Some(AdapterKind::Gemini),
 			"anthropic" => Some(AdapterKind::Anthropic),
+			"bedrock" => Some(AdapterKind::Bedrock),
 			"fireworks" => Some(AdapterKind::Fireworks),
 			"together" => Some(AdapterKind::Together),
 			"groq" => Some(AdapterKind::Groq),
@@ -116,6 +122,7 @@ impl AdapterKind {
 			AdapterKind::OpenAIResp => Some(OpenAIAdapter::API_KEY_DEFAULT_ENV_NAME),
 			AdapterKind::Gemini => Some(GeminiAdapter::API_KEY_DEFAULT_ENV_NAME),
 			AdapterKind::Anthropic => Some(AnthropicAdapter::API_KEY_DEFAULT_ENV_NAME),
+			AdapterKind::Bedrock => Some(BedrockAdapter::API_KEY_DEFAULT_ENV_NAME),
 			AdapterKind::Fireworks => Some(FireworksAdapter::API_KEY_DEFAULT_ENV_NAME),
 			AdapterKind::Together => Some(TogetherAdapter::API_KEY_DEFAULT_ENV_NAME),
 			AdapterKind::Groq => Some(GroqAdapter::API_KEY_DEFAULT_ENV_NAME),
@@ -139,6 +146,7 @@ impl AdapterKind {
 	///  - OpenAI     - starts_with "gpt", "o3", "o1", "chatgpt"
 	///  - Gemini     - starts_with "gemini"
 	///  - Anthropic  - starts_with "claude"
+	///  - Bedrock    - starts_with "anthropic.claude", "us.anthropic.claude", "eu.anthropic.claude", "ap.anthropic.claude", "global.anthropic.claude"
 	///  - Fireworks  - contains "fireworks" (might add leading or trailing '/' later)
 	///  - Groq       - model in Groq models
 	///  - DeepSeek   - model in DeepSeek models (deepseek.com)
@@ -181,6 +189,13 @@ impl AdapterKind {
 			}
 		} else if model.starts_with("gemini") {
 			Ok(Self::Gemini)
+		} else if model.starts_with("anthropic.claude")
+			|| model.starts_with("us.anthropic.claude")
+			|| model.starts_with("eu.anthropic.claude")
+			|| model.starts_with("ap.anthropic.claude")
+			|| model.starts_with("global.anthropic.claude")
+		{
+			Ok(Self::Bedrock)
 		} else if model.starts_with("claude") {
 			Ok(Self::Anthropic)
 		} else if model.contains("fireworks") {
