@@ -190,10 +190,10 @@ impl AdapterKind {
 		} else if model.starts_with("gemini") {
 			Ok(Self::Gemini)
 		} else if model.starts_with("anthropic.claude")
-			|| model.starts_with("us.anthropic.claude")
-			|| model.starts_with("eu.anthropic.claude")
-			|| model.starts_with("ap.anthropic.claude")
-			|| model.starts_with("global.anthropic.claude")
+			|| model.starts_with("us.anthropic.")
+			|| model.starts_with("eu.anthropic.")
+			|| model.starts_with("ap.anthropic.")
+			|| model.starts_with("global.anthropic.")
 		{
 			Ok(Self::Bedrock)
 		} else if model.starts_with("claude") {

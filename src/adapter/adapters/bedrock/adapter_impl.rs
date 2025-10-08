@@ -27,12 +27,21 @@ const MAX_TOKENS_8K: u32 = 8192;
 const MAX_TOKENS_4K: u32 = 4096;
 
 const MODELS: &[&str] = &[
+	// Non-regional models
 	"anthropic.claude-3-5-sonnet-20240620-v1:0",
 	"anthropic.claude-3-5-sonnet-20241022-v2:0",
 	"anthropic.claude-3-5-haiku-20241022-v1:0",
 	"anthropic.claude-3-opus-20240229-v1:0",
+	// US region models
+	"us.anthropic.claude-sonnet-4-20250514-v1:0",
+	"us.anthropic.claude-opus-4-20250514-v1:0",
 	"us.anthropic.claude-3-5-sonnet-20241022-v2:0",
+	"us.anthropic.claude-3-5-haiku-20241022-v1:0",
+	"us.anthropic.claude-3-haiku-20240307-v1:0",
+	// EU region models
 	"eu.anthropic.claude-3-5-sonnet-20241022-v2:0",
+	// Global region models
+	"global.anthropic.claude-sonnet-4-20250514-v1:0",
 ];
 
 impl BedrockAdapter {
@@ -60,7 +69,9 @@ impl Adapter for BedrockAdapter {
 		// For Bedrock, the URL is typically set via ServiceTargetResolver
 		// The endpoint might be a custom proxy that handles the AWS-specific routing
 		// We just return the base_url as-is since proxies handle the path construction
-		Ok(endpoint.base_url().to_string())
+		let url = endpoint.base_url().to_string();
+		tracing::debug!("BedrockAdapter::get_service_url returning: {}", url);
+		Ok(url)
 	}
 
 	fn to_web_request_data(
@@ -76,6 +87,12 @@ impl Adapter for BedrockAdapter {
 
 		// Get URL
 		let url = Self::get_service_url(&model, service_type, endpoint)?;
+		tracing::debug!(
+			"BedrockAdapter::to_web_request_data - model: {}, service_type: {:?}, url: {}",
+			&*model.model_name,
+			service_type,
+			url
+		);
 
 		// Headers - can be customized via ChatOptions.extra_headers
 		let mut headers = Headers::from(vec![
@@ -402,21 +419,36 @@ impl BedrockAdapter {
 	fn default_max_tokens(model_name: &str) -> u32 {
 		let model_lower = model_name.to_lowercase();
 
+		// Claude 4 Opus models
 		if model_lower.contains("opus-4") || model_lower.contains("claude-4-opus") {
 			MAX_TOKENS_32K
-		} else if model_lower.contains("3-opus") || model_lower.contains("3-haiku") {
+		}
+		// Claude 4 Sonnet models
+		else if model_lower.contains("sonnet-4") || model_lower.contains("claude-4-sonnet") {
+			MAX_TOKENS_64K
+		}
+		// Claude 3 Opus and older Haiku models
+		else if model_lower.contains("3-opus") || model_lower.contains("3-haiku-20240307") {
 			MAX_TOKENS_4K
-		} else if model_lower.contains("3-5-haiku") {
+		}
+		// Claude 3.5 Haiku models
+		else if model_lower.contains("3-5-haiku") {
 			MAX_TOKENS_8K
-		} else {
-			// Default for sonnet and newer models
+		}
+		// Default for sonnet and newer models
+		else {
 			MAX_TOKENS_64K
 		}
 	}
 
 	fn reasoning_effort_to_budget(reasoning_effort: &ReasoningEffort, model_name: &str) -> Option<u32> {
-		// Only certain models support thinking/reasoning
+		// Only certain models support thinking/reasoning (primarily Sonnet and Opus models)
 		let model_lower = model_name.to_lowercase();
+		// Haiku models don't support reasoning
+		if model_lower.contains("haiku") {
+			return None;
+		}
+		// Sonnet and Opus models support reasoning
 		if !model_lower.contains("sonnet") && !model_lower.contains("opus") {
 			return None;
 		}
