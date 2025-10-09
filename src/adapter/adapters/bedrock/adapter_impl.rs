@@ -100,9 +100,29 @@ impl Adapter for BedrockAdapter {
 			("Content-Type".to_string(), "application/json".to_string()),
 		]);
 
+		tracing::debug!(
+			"BedrockAdapter initial headers: Authorization=Bearer {}..., Content-Type=application/json",
+			&api_key.chars().take(10).collect::<String>()
+		);
+
 		// Merge extra headers if provided (e.g., for custom proxy implementations)
 		if let Some(extra_headers) = options_set.extra_headers() {
+			tracing::debug!("BedrockAdapter merging extra headers: {:?}", extra_headers);
 			headers.merge_with(extra_headers);
+		}
+
+		// Log all final headers
+		tracing::debug!("BedrockAdapter final headers being sent:");
+		for (key, value) in headers.iter() {
+			if key == "Authorization" {
+				tracing::debug!(
+					"  {}: Bearer {}...",
+					key,
+					value.chars().skip(7).take(10).collect::<String>()
+				);
+			} else {
+				tracing::debug!("  {}: {}", key, value);
+			}
 		}
 
 		// Build request payload using Anthropic format (Bedrock uses same format)
@@ -163,6 +183,12 @@ impl Adapter for BedrockAdapter {
 		if matches!(service_type, ServiceType::ChatStream) {
 			payload["stream"] = json!(true);
 		}
+
+		// Log the payload for debugging
+		tracing::debug!(
+			"BedrockAdapter payload being sent: {}",
+			serde_json::to_string_pretty(&payload).unwrap_or_else(|_| "failed to serialize".to_string())
+		);
 
 		Ok(WebRequestData { url, headers, payload })
 	}

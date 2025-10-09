@@ -252,6 +252,18 @@ impl Adapter for AnthropicAdapter {
 					};
 					tool_calls.push(tool_call);
 				}
+				"server_tool_use" => {
+					// Server-executed tools like web_search - API handles execution
+					// We can log it but don't add to tool_calls since client doesn't respond
+					let _call_id = item.x_get_str("id").ok();
+					let tool_name = item.x_get_str("name").unwrap_or("unknown");
+					tracing::debug!("Server tool use: {}", tool_name);
+				}
+				"web_search_tool_result" => {
+					// Web search results - embedded by the API, no action needed
+					// Results are used by Claude internally for generating the response
+					tracing::debug!("Web search tool result received");
+				}
 				_ => (),
 			}
 		}
@@ -565,6 +577,19 @@ impl AnthropicAdapter {
 			tools
 				.into_iter()
 				.map(|tool| {
+					// -- Check if this is a server tool (e.g., web_search)
+					// Server tools use config field directly instead of the standard name/input_schema format
+					if tool.name == "web_search" {
+						if let Some(config) = tool.config {
+							// For server tools, use the config as-is (it contains type, name, and optional params)
+							let mut tool_value = config;
+							// Ensure the name is set
+							let _ = tool_value.x_insert("name", "web_search");
+							return tool_value;
+						}
+					}
+
+					// -- Standard user-defined tools
 					// TODO: Need to handle the error correctly
 					// TODO: Needs to have a custom serializer (tool should not have to match to a provider)
 					// NOTE: Right now, low probability, so we just return null if cannot convert to value.

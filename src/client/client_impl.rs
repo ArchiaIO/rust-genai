@@ -100,12 +100,18 @@ impl Client {
 		chat_req: ChatRequest, // options not implemented yet
 		options: Option<&ChatOptions>,
 	) -> Result<ChatStreamResponse> {
+		tracing::debug!("exec_chat_stream: Starting for model: {}", model);
 		let options_set = ChatOptionsSet::default()
 			.with_chat_options(options)
 			.with_client_options(self.config().chat_options());
 
 		let model = self.default_model(model)?;
+		tracing::debug!("exec_chat_stream: Model resolved to: {:?}", model);
 		let target = self.config().resolve_service_target(model).await?;
+		tracing::debug!(
+			"exec_chat_stream: Service target resolved, endpoint: {}",
+			target.endpoint.base_url()
+		);
 		let model = target.model.clone();
 		let auth_data = target.auth.clone();
 
@@ -114,6 +120,7 @@ impl Client {
 			mut headers,
 			payload,
 		} = AdapterDispatcher::to_web_request_data(target, ServiceType::ChatStream, chat_req, options_set.clone())?;
+		tracing::debug!("exec_chat_stream: WebRequestData created, url: {}", url);
 
 		// TODO: Need to check this.
 		//       This was part of the 429c5cee2241dbef9f33699b9c91202233c22816 commit
@@ -127,6 +134,7 @@ impl Client {
 			headers = override_headers;
 		};
 
+		tracing::debug!("exec_chat_stream: Building request for url: {}", url);
 		let reqwest_builder = self
 			.web_client()
 			.new_req_builder(&url, &headers, payload)
@@ -135,8 +143,10 @@ impl Client {
 				webc_error,
 			})?;
 
+		tracing::debug!("exec_chat_stream: Request builder created, calling to_chat_stream");
 		let res = AdapterDispatcher::to_chat_stream(model, reqwest_builder, options_set)?;
 
+		tracing::debug!("exec_chat_stream: ChatStreamResponse created successfully");
 		Ok(res)
 	}
 

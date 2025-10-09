@@ -267,21 +267,31 @@ impl futures::Stream for BedrockStreamer {
 			};
 
 			// Execute the request
+			tracing::debug!("BedrockStreamer: Sending HTTP request...");
 			let fut = builder.send();
 			tokio::pin!(fut);
 
 			match fut.poll(cx) {
 				Poll::Ready(Ok(response)) => {
+					let status = response.status();
+					tracing::debug!("BedrockStreamer: Received response with status: {}", status);
+					if !status.is_success() {
+						tracing::error!("BedrockStreamer: Non-success status code: {}", status);
+					}
 					self.state = StreamerState::Streaming { response, done: false };
 					// Fall through to polling
 				}
 				Poll::Ready(Err(e)) => {
+					tracing::error!("BedrockStreamer: Failed to send request: {}", e);
 					return Poll::Ready(Some(Err(Error::WebStream {
 						model_iden,
 						cause: format!("Failed to send request: {}", e),
 					})));
 				}
-				Poll::Pending => return Poll::Pending,
+				Poll::Pending => {
+					tracing::debug!("BedrockStreamer: Request still pending...");
+					return Poll::Pending;
+				}
 			}
 		}
 

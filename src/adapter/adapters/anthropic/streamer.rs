@@ -23,7 +23,9 @@ pub struct AnthropicStreamer {
 enum InProgressBlock {
 	Text,
 	ToolUse { id: String, name: String, input: String },
+	ServerToolUse { id: String, name: String, input: String },
 	Thinking,
+	WebSearchResult,
 }
 
 impl AnthropicStreamer {
@@ -79,6 +81,17 @@ impl futures::Stream for AnthropicStreamer {
 										input: String::new(),
 									};
 								}
+								Ok("server_tool_use") => {
+									self.in_progress_block = InProgressBlock::ServerToolUse {
+										id: data.x_take("/content_block/id")?,
+										name: data.x_take("/content_block/name")?,
+										input: String::new(),
+									};
+								}
+								Ok("web_search_tool_result") => {
+									self.in_progress_block = InProgressBlock::WebSearchResult;
+									// Web search results are handled server-side, just track the block
+								}
 								Ok(txt) => {
 									tracing::warn!("unhandled content type: {txt}");
 								}
@@ -112,6 +125,14 @@ impl futures::Stream for AnthropicStreamer {
 								}
 								InProgressBlock::ToolUse { input, .. } => {
 									input.push_str(data.x_get_str("/delta/partial_json")?);
+									continue;
+								}
+								InProgressBlock::ServerToolUse { input, .. } => {
+									input.push_str(data.x_get_str("/delta/partial_json")?);
+									continue;
+								}
+								InProgressBlock::WebSearchResult => {
+									// Web search results are server-side, no delta processing needed
 									continue;
 								}
 								InProgressBlock::Thinking => {
@@ -148,8 +169,23 @@ impl futures::Stream for AnthropicStreamer {
 
 									return Poll::Ready(Some(Ok(InterStreamEvent::ToolCallChunk(tc))));
 								}
+								InProgressBlock::ServerToolUse { id, name, input } => {
+									// Server tool use (e.g., web_search) - executed by the API
+									// We can capture it but don't need to return it as a ToolCall event
+									// since the client doesn't need to respond to it
+									tracing::debug!("Server tool use: {} ({})", name, id);
+									continue;
+								}
+								InProgressBlock::WebSearchResult => {
+									// Web search results are embedded in the response by the server
+									continue;
+								}
+								InProgressBlock::Thinking => {
+									// Just end the block, no event to emit
+									continue;
+								}
 								_ => {
-									// no-op for remaining block types
+									continue;
 								}
 							}
 
