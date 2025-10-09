@@ -169,23 +169,20 @@ impl futures::Stream for AnthropicStreamer {
 
 									return Poll::Ready(Some(Ok(InterStreamEvent::ToolCallChunk(tc))));
 								}
-								InProgressBlock::ServerToolUse { id, name, input } => {
+								InProgressBlock::ServerToolUse { id, name, input: _ } => {
 									// Server tool use (e.g., web_search) - executed by the API
 									// We can capture it but don't need to return it as a ToolCall event
 									// since the client doesn't need to respond to it
 									tracing::debug!("Server tool use: {} ({})", name, id);
-									continue;
 								}
 								InProgressBlock::WebSearchResult => {
 									// Web search results are embedded in the response by the server
-									continue;
 								}
 								InProgressBlock::Thinking => {
 									// Just end the block, no event to emit
-									continue;
 								}
-								_ => {
-									continue;
+								InProgressBlock::Text => {
+									// Normal text block end
 								}
 							}
 

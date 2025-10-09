@@ -6,6 +6,7 @@ use base64::Engine as Base64Engine;
 use bytes::Bytes;
 use reqwest::RequestBuilder;
 use serde_json::Value;
+use std::error::Error as StdError;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use value_ext::JsonValueExt;
@@ -268,8 +269,11 @@ impl futures::Stream for BedrockStreamer {
 
 			// Execute the request
 			tracing::debug!("BedrockStreamer: Sending HTTP request...");
+			tracing::debug!("BedrockStreamer: Creating send() future");
 			let fut = builder.send();
+			tracing::debug!("BedrockStreamer: Pinning future");
 			tokio::pin!(fut);
+			tracing::debug!("BedrockStreamer: About to poll future with context");
 
 			match fut.poll(cx) {
 				Poll::Ready(Ok(response)) => {
@@ -282,14 +286,22 @@ impl futures::Stream for BedrockStreamer {
 					// Fall through to polling
 				}
 				Poll::Ready(Err(e)) => {
-					tracing::error!("BedrockStreamer: Failed to send request: {}", e);
+					tracing::error!("BedrockStreamer: Failed to send request: {:?}", e);
+					tracing::error!("BedrockStreamer: Error source: {:?}", StdError::source(&e));
+					if e.is_timeout() {
+						tracing::error!("BedrockStreamer: Request timed out");
+					}
+					if e.is_connect() {
+						tracing::error!("BedrockStreamer: Connection error");
+					}
 					return Poll::Ready(Some(Err(Error::WebStream {
 						model_iden,
 						cause: format!("Failed to send request: {}", e),
 					})));
 				}
 				Poll::Pending => {
-					tracing::debug!("BedrockStreamer: Request still pending...");
+					tracing::debug!("BedrockStreamer: Request still pending, will be polled again");
+					tracing::debug!("BedrockStreamer: Waker registered, waiting for network event");
 					return Poll::Pending;
 				}
 			}
