@@ -5,6 +5,7 @@
 //!
 //! NOTE: This might be removed at some point as it may not be needed, and we could go directly to the GenAI stream.
 
+use serde::{Deserialize, Serialize};
 use crate::chat::Usage;
 
 #[derive(Debug, Default)]
@@ -22,12 +23,25 @@ pub struct InterStreamEnd {
 	pub captured_tool_calls: Option<Vec<crate::chat::ToolCall>>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WebSearchResult {
+    pub title: String,
+    pub url: String,
+    pub snippet: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WebSearchResults {
+    pub results: Vec<WebSearchResult>,
+}
+
 /// Intermediary StreamEvent
 #[derive(Debug)]
 pub enum InterStreamEvent {
-	Start,
-	Chunk(String),
-	ReasoningChunk(String),
-	ToolCallChunk(crate::chat::ToolCall),
-	End(InterStreamEnd),
+    Start,
+    Chunk(String),
+    ReasoningChunk(String),
+    ToolCallChunk(crate::chat::ToolCall),
+    WebSearchResultsChunk(WebSearchResults),
+    End(InterStreamEnd),
 }

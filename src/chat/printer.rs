@@ -137,6 +137,20 @@ async fn print_chat_stream_inner(
 							(None, None, false)
 						}
 					}
+
+					ChatStreamEvent::WebSearchResultsChunk(results) => {
+						if print_events {
+							for result in &results.results {
+								println!(
+									"\n-- Web Search Result --\nTitle: {}\nURL: {}\nSnippet: {}\n",
+									result.title, result.url, result.snippet
+								);
+							}
+							(Some("\n-- ChatStreamEvent::WebSearchResultsChunk\n".to_string()), None, false)
+						} else {
+							(None, None, false)
+						}
+					}
 				}
 			}
 			Err(e) => return Err(e.into()),

@@ -45,6 +45,9 @@ impl Stream for ChatStream {
 					InterStreamEvent::ToolCallChunk(tool_call) => {
 						ChatStreamEvent::ToolCallChunk(ToolChunk { tool_call })
 					}
+					InterStreamEvent::WebSearchResultsChunk(results) => {
+						ChatStreamEvent::WebSearchResultsChunk(results)
+					}
 					InterStreamEvent::End(inter_end) => ChatStreamEvent::End(inter_end.into()),
 				};
 				Poll::Ready(Some(Ok(chat_event)))
@@ -74,6 +77,9 @@ pub enum ChatStreamEvent {
 
 	/// Tool-call chunk.
 	ToolCallChunk(ToolChunk),
+
+	/// Web search results chunk.
+	WebSearchResultsChunk(crate::adapter::inter_stream::WebSearchResults),
 
 	/// End of stream.
 	/// May include captured usage and/or content when enabled via `ChatOptions`.

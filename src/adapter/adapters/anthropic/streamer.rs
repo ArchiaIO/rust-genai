@@ -79,8 +79,42 @@ impl futures::Stream for AnthropicStreamer {
 										input: String::new(),
 									};
 								}
-								Ok("server_tool_use") => {
-									self.in_progress_block = InProgressBlock::Text
+								Ok("server_tool_use") => self.in_progress_block = InProgressBlock::Text,
+								Ok("web_search_tool_result") => {
+									// Handle web search results that come fully formed in content_block_start
+									if let Some(content_array) =
+										data.pointer("/content_block/content").and_then(|v| v.as_array())
+									{
+										use crate::adapter::inter_stream::{WebSearchResult, WebSearchResults};
+										let parsed_results = content_array
+											.iter()
+											.filter_map(|item| {
+												if item.get("type")?.as_str()? == "web_search_result" {
+													Some(WebSearchResult {
+														title: item.get("title")?.as_str()?.to_string(),
+														url: item.get("url")?.as_str()?.to_string(),
+														snippet: item
+															.get("snippet")?
+															.as_str()
+															.unwrap_or("")
+															.to_string(),
+													})
+												} else {
+													None
+												}
+											})
+											.collect::<Vec<_>>();
+										if !parsed_results.is_empty() {
+											let ws_results = WebSearchResults {
+												results: parsed_results,
+											};
+											return Poll::Ready(Some(Ok(InterStreamEvent::WebSearchResultsChunk(
+												ws_results,
+											))));
+										}
+									}
+									// Set to Text to handle any subsequent deltas
+									self.in_progress_block = InProgressBlock::Text;
 								}
 								Ok(txt) => {
 									tracing::warn!("unhandled content type: {txt}");
@@ -101,17 +135,22 @@ impl futures::Stream for AnthropicStreamer {
 
 							match &mut self.in_progress_block {
 								InProgressBlock::Text => {
-									let content: String = data.x_take("/delta/text")?;
-
-									// Add to the captured_content if chat options say so
-									if self.options.capture_content {
-										match self.captured_data.content {
-											Some(ref mut c) => c.push_str(&content),
-											None => self.captured_data.content = Some(content.clone()),
+									// Check if text field exists before extracting
+									// (some deltas may not have text, e.g., after web search results)
+									if let Ok(content) = data.x_take::<String>("/delta/text") {
+										// Add to the captured_content if chat options say so
+										if self.options.capture_content {
+											match self.captured_data.content {
+												Some(ref mut c) => c.push_str(&content),
+												None => self.captured_data.content = Some(content.clone()),
+											}
 										}
-									}
 
-									return Poll::Ready(Some(Ok(InterStreamEvent::Chunk(content))));
+										return Poll::Ready(Some(Ok(InterStreamEvent::Chunk(content))));
+									} else {
+										// No text in this delta, continue to next event
+										continue;
+									}
 								}
 								InProgressBlock::ToolUse { input, .. } => {
 									input.push_str(data.x_get_str("/delta/partial_json")?);
