@@ -79,6 +79,9 @@ impl futures::Stream for AnthropicStreamer {
 										input: String::new(),
 									};
 								}
+								Ok("server_tool_use") => {
+									self.in_progress_block = InProgressBlock::Text
+								}
 								Ok(txt) => {
 									tracing::warn!("unhandled content type: {txt}");
 								}

@@ -98,7 +98,7 @@ impl Adapter for AnthropicAdapter {
 		let AnthropicRequestParts {
 			system,
 			messages,
-			tools,
+			mut tools,
 		} = Self::into_anthropic_request_parts(chat_req)?;
 
 		// -- Extract Model Name and Reasoning
@@ -148,6 +148,19 @@ impl Adapter for AnthropicAdapter {
 
 		if let Some(system) = system {
 			payload.x_insert("system", system)?;
+		}
+
+		if let Some(web_search) = options_set.web_search() {
+			let tool = json!({
+				"name": "web_search",
+				"type": "web_search_20250305",
+			});
+			// add to the tools vec:
+			if tools.is_none() {
+				tools = Some(vec![tool]);
+			}else{
+				tools.as_mut().unwrap().push(tool);
+			}
 		}
 
 		if let Some(tools) = tools {

@@ -65,6 +65,9 @@ pub struct ChatOptions {
 
 	/// Additional HTTP headers to include with the request.
 	pub extra_headers: Option<Headers>,
+
+	/// Built-int web search tool for chat
+	pub web_search: Option<WebSearchOptions>
 }
 
 /// Chainable Setters
@@ -258,6 +261,23 @@ impl std::str::FromStr for ReasoningEffort {
 
 // endregion: --- ReasoningEffort
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UserLocation {
+	_type: String,
+	city: String,
+	region: String,
+	country: String,
+	timezone: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WebSearchOptions {
+	pub max_uses: Option<u32>,
+	pub allowed_domains: Option<Vec<String>>,
+	pub blocked_domains: Option<Vec<String>>,
+	pub user_location: Option<UserLocation>,
+}
+
 // region:    --- Verbosity
 
 /// Provider-specific hint for verbosity intensity/budget.
@@ -390,6 +410,11 @@ impl ChatOptionsSet<'_, '_> {
 		self.chat
 			.and_then(|chat| chat.capture_content)
 			.or_else(|| self.client.and_then(|client| client.capture_content))
+	}
+
+	pub fn web_search(&self) -> Option<WebSearchOptions> {
+		self.chat.and_then(|chat| chat.web_search.clone())
+			.or_else(|| self.client.and_then(|client | client.web_search.clone()))
 	}
 
 	pub fn capture_reasoning_content(&self) -> Option<bool> {
