@@ -157,17 +157,24 @@ impl futures::Stream for AnthropicStreamer {
 									continue;
 								}
 								InProgressBlock::Thinking => {
-									let thinking: String = data.x_take("/delta/thinking")?;
+									// Try to extract thinking content - it might be in different fields
+									let thinking_result = data.x_take::<String>("/delta/thinking")
+										.or_else(|_| data.x_take::<String>("/delta/text"));
 
-									// Add to the captured_thinking if chat options say so
-									if self.options.capture_reasoning_content {
-										match self.captured_data.reasoning_content {
-											Some(ref mut r) => r.push_str(&thinking),
-											None => self.captured_data.reasoning_content = Some(thinking.clone()),
+									if let Ok(thinking) = thinking_result {
+										// Add to the captured_thinking if chat options say so
+										if self.options.capture_reasoning_content {
+											match self.captured_data.reasoning_content {
+												Some(ref mut r) => r.push_str(&thinking),
+												None => self.captured_data.reasoning_content = Some(thinking.clone()),
+											}
 										}
-									}
 
-									return Poll::Ready(Some(Ok(InterStreamEvent::ReasoningChunk(thinking))));
+										return Poll::Ready(Some(Ok(InterStreamEvent::ReasoningChunk(thinking))));
+									} else {
+										// No thinking content in this delta, continue to next event
+										continue;
+									}
 								}
 							}
 						}
