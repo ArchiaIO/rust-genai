@@ -256,8 +256,8 @@ impl Adapter for AnthropicAdapter {
 				"tool_use" => {
 					let call_id = item.x_take::<String>("id")?;
 					let fn_name = item.x_take::<String>("name")?;
-					// if not found, will be Value::Null
-					let fn_arguments = item.x_take::<Value>("input").unwrap_or_default();
+					// For tools with no parameters, Anthropic may omit the input field or send empty object
+					let fn_arguments = item.x_take::<Value>("input").unwrap_or_else(|_| json!({}));
 					let tool_call = ToolCall {
 						call_id,
 						fn_name,
