@@ -54,6 +54,32 @@ impl futures::Stream for AnthropicStreamer {
 					let message_type = message.event.as_str();
 
 					match message_type {
+						"error" => {
+							// Handle error events from the secure proxy or API
+							self.done = true; // Mark stream as done to prevent further reading
+
+							let error_data: Value =
+								serde_json::from_str(&message.data).map_err(|serde_error| Error::StreamParse {
+									model_iden: self.options.model_iden.clone(),
+									serde_error,
+								})?;
+
+							// Extract error type and message
+							let error_type =
+								error_data.pointer("/error/type").and_then(|v| v.as_str()).unwrap_or("unknown");
+							let error_message = error_data
+								.pointer("/error/message")
+								.and_then(|v| v.as_str())
+								.unwrap_or("An error occurred");
+
+							tracing::error!("Received error event: type={}, message={}", error_type, error_message);
+
+							// Return error as a ChatResponse error
+							return Poll::Ready(Some(Err(Error::ChatResponse {
+								model_iden: self.options.model_iden.clone(),
+								body: error_data,
+							})));
+						}
 						"message_start" => {
 							self.capture_usage(message_type, &message.data)?;
 							continue;
@@ -158,7 +184,8 @@ impl futures::Stream for AnthropicStreamer {
 								}
 								InProgressBlock::Thinking => {
 									// Try to extract thinking content - it might be in different fields
-									let thinking_result = data.x_take::<String>("/delta/thinking")
+									let thinking_result = data
+										.x_take::<String>("/delta/thinking")
 										.or_else(|_| data.x_take::<String>("/delta/text"));
 
 									if let Ok(thinking) = thinking_result {
@@ -252,7 +279,25 @@ impl futures::Stream for AnthropicStreamer {
 				}
 				Some(Err(err)) => {
 					tracing::error!("Error: {}", err);
-					return Poll::Ready(Some(Err(Error::ReqwestEventSource(err.into()))));
+
+					// Try to extract status code and body from InvalidStatusCode errors
+					match &err {
+						reqwest_eventsource::Error::InvalidStatusCode(status, response) => {
+							// Try to get the response body if available
+							// Note: The response body might not be accessible here after the error,
+							// but we log what we can
+							tracing::error!("Invalid status code: {} - Response: {:?}", status, response);
+
+							// Create an HttpError with what we have
+							return Poll::Ready(Some(Err(Error::HttpError {
+								status_code: status.as_u16(),
+								body: format!("HTTP {} response from service", status),
+							})));
+						}
+						_ => {
+							return Poll::Ready(Some(Err(Error::ReqwestEventSource(err.into()))));
+						}
+					}
 				}
 				None => return Poll::Ready(None),
 			}

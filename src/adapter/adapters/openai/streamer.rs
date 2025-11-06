@@ -45,6 +45,34 @@ impl futures::Stream for OpenAIStreamer {
 			match event {
 				Some(Ok(Event::Open)) => return Poll::Ready(Some(Ok(InterStreamEvent::Start))),
 				Some(Ok(Event::Message(message))) => {
+					// -- Error Event
+					// Handle error events from the secure proxy or API
+					if message.event == "error" {
+						self.done = true; // Mark stream as done to prevent further reading
+
+						let error_data: Value =
+							serde_json::from_str(&message.data).map_err(|serde_error| Error::StreamParse {
+								model_iden: self.options.model_iden.clone(),
+								serde_error,
+							})?;
+
+						// Extract error type and message
+						let error_type =
+							error_data.pointer("/error/type").and_then(|v| v.as_str()).unwrap_or("unknown");
+						let error_message = error_data
+							.pointer("/error/message")
+							.and_then(|v| v.as_str())
+							.unwrap_or("An error occurred");
+
+						tracing::error!("Received error event: type={}, message={}", error_type, error_message);
+
+						// Return error as a ChatResponse error
+						return Poll::Ready(Some(Err(Error::ChatResponse {
+							model_iden: self.options.model_iden.clone(),
+							body: error_data,
+						})));
+					}
+
 					// -- End Message
 					// According to OpenAI Spec, this is the end message
 					if message.data == "[DONE]" {

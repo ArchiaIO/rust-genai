@@ -112,6 +112,9 @@ pub enum Error {
 	#[from]
 	JsonValueExt(JsonValueExtError),
 
+	#[display("HTTP error: status {status_code}, body: {body}")]
+	HttpError { status_code: u16, body: String },
+
 	#[display("Reqwest EventSource error: {_0}")]
 	ReqwestEventSource(Box<reqwest_eventsource::Error>),
 
