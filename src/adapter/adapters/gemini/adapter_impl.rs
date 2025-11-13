@@ -458,6 +458,9 @@ impl GeminiAdapter {
 									}
 								}));
 							}
+							ContentPart::Thinking(_) => {
+								// Thinking not used in Gemini user content
+							}
 						}
 					}
 
@@ -468,6 +471,7 @@ impl GeminiAdapter {
 					for part in msg.content {
 						match part {
 							ContentPart::Text(text) => parts_values.push(json!({"text": text})),
+							ContentPart::Binary(_) => {}
 							ContentPart::ToolCall(tool_call) => {
 								parts_values.push(json!({
 									"functionCall": {
@@ -476,9 +480,10 @@ impl GeminiAdapter {
 									}
 								}));
 							}
-							// Ignore unsupported parts for Assistant role
-							ContentPart::Binary(_) => {}
 							ContentPart::ToolResponse(_) => {}
+							ContentPart::Thinking(_) => {
+								// Thinking not used in Gemini assistant content
+							}
 						}
 					}
 					if !parts_values.is_empty() {

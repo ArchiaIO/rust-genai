@@ -21,6 +21,8 @@ pub enum ContentPart {
 
 	#[from]
 	ToolResponse(ToolResponse),
+
+	Thinking(String),
 }
 
 /// Constructors
@@ -28,6 +30,11 @@ impl ContentPart {
 	/// Create a text content part.
 	pub fn from_text(text: impl Into<String>) -> ContentPart {
 		ContentPart::Text(text.into())
+	}
+
+	/// Create a thinking content part (for extended thinking models).
+	pub fn from_thinking(text: impl Into<String>) -> ContentPart {
+		ContentPart::Thinking(text.into())
 	}
 
 	/// Create a binary content part from a base64 payload.
@@ -136,6 +143,24 @@ impl ContentPart {
 			None
 		}
 	}
+
+	/// Borrow the thinking content if present.
+	pub fn as_thinking(&self) -> Option<&str> {
+		if let ContentPart::Thinking(content) = self {
+			Some(content.as_str())
+		} else {
+			None
+		}
+	}
+
+	/// Extract the thinking content, consuming the part.
+	pub fn into_thinking(self) -> Option<String> {
+		if let ContentPart::Thinking(content) = self {
+			Some(content)
+		} else {
+			None
+		}
+	}
 }
 
 /// is_.. Accessors
@@ -170,6 +195,11 @@ impl ContentPart {
 	/// Returns true if this part contains a tool response.
 	pub fn is_tool_response(&self) -> bool {
 		matches!(self, ContentPart::ToolResponse(_))
+	}
+
+	/// Returns true if this part contains thinking content.
+	pub fn is_thinking(&self) -> bool {
+		matches!(self, ContentPart::Thinking(_))
 	}
 }
 
