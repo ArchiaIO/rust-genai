@@ -23,7 +23,7 @@ pub struct AnthropicStreamer {
 enum InProgressBlock {
 	Text,
 	ToolUse { id: String, name: String, input: String },
-	Thinking,
+	Thinking { signature: Option<String> },
 }
 
 impl AnthropicStreamer {
@@ -71,7 +71,13 @@ impl futures::Stream for AnthropicStreamer {
 
 							match data.x_get_str("/content_block/type") {
 								Ok("text") => self.in_progress_block = InProgressBlock::Text,
-								Ok("thinking") => self.in_progress_block = InProgressBlock::Thinking,
+								Ok("thinking") => {
+									let signature = data
+										.pointer("/content_block/signature")
+										.and_then(|v| v.as_str())
+										.map(|s| s.to_string());
+									self.in_progress_block = InProgressBlock::Thinking { signature };
+								}
 								Ok("tool_use") => {
 									self.in_progress_block = InProgressBlock::ToolUse {
 										id: data.x_take("/content_block/id")?,
@@ -156,9 +162,13 @@ impl futures::Stream for AnthropicStreamer {
 									input.push_str(data.x_get_str("/delta/partial_json")?);
 									continue;
 								}
-								InProgressBlock::Thinking => {
+								InProgressBlock::Thinking { signature } => {
+									if let Some(sig) = data.pointer("/delta/signature").and_then(|v| v.as_str()) {
+										*signature = Some(sig.to_string());
+									}
 									// Try to extract thinking content - it might be in different fields
-									let thinking_result = data.x_take::<String>("/delta/thinking")
+									let thinking_result = data
+										.x_take::<String>("/delta/thinking")
 										.or_else(|_| data.x_take::<String>("/delta/text"));
 
 									if let Ok(thinking) = thinking_result {
@@ -206,6 +216,9 @@ impl futures::Stream for AnthropicStreamer {
 
 									return Poll::Ready(Some(Ok(InterStreamEvent::ToolCallChunk(tc))));
 								}
+								InProgressBlock::Thinking { signature } => {
+									self.captured_data.reasoning_signature = signature;
+								}
 								_ => {
 									// no-op for remaining block types
 								}
@@ -239,6 +252,7 @@ impl futures::Stream for AnthropicStreamer {
 								captured_usage,
 								captured_text_content: self.captured_data.content.take(),
 								captured_reasoning_content: self.captured_data.reasoning_content.take(),
+								captured_reasoning_signature: self.captured_data.reasoning_signature.take(),
 								captured_tool_calls: self.captured_data.tool_calls.take(),
 							};
 

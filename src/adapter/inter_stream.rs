@@ -5,8 +5,8 @@
 //!
 //! NOTE: This might be removed at some point as it may not be needed, and we could go directly to the GenAI stream.
 
-use serde::{Deserialize, Serialize};
 use crate::chat::Usage;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Default)]
 pub struct InterStreamEnd {
@@ -19,29 +19,32 @@ pub struct InterStreamEnd {
 	// When `ChatOptions..capture_reasoning_content == true`
 	pub captured_reasoning_content: Option<String>,
 
+	// When `ChatOptions..capture_reasoning_content == true` and provider supplies signatures
+	pub captured_reasoning_signature: Option<String>,
+
 	// When `ChatOptions..capture_tool_calls == true`
 	pub captured_tool_calls: Option<Vec<crate::chat::ToolCall>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WebSearchResult {
-    pub title: String,
-    pub url: String,
-    pub snippet: String,
+	pub title: String,
+	pub url: String,
+	pub snippet: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WebSearchResults {
-    pub results: Vec<WebSearchResult>,
+	pub results: Vec<WebSearchResult>,
 }
 
 /// Intermediary StreamEvent
 #[derive(Debug)]
 pub enum InterStreamEvent {
-    Start,
-    Chunk(String),
-    ReasoningChunk(String),
-    ToolCallChunk(crate::chat::ToolCall),
-    WebSearchResultsChunk(WebSearchResults),
-    End(InterStreamEnd),
+	Start,
+	Chunk(String),
+	ReasoningChunk(String),
+	ToolCallChunk(crate::chat::ToolCall),
+	WebSearchResultsChunk(WebSearchResults),
+	End(InterStreamEnd),
 }

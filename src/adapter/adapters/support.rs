@@ -45,6 +45,7 @@ pub struct StreamerCapturedData {
 	pub usage: Option<Usage>,
 	pub content: Option<String>,
 	pub reasoning_content: Option<String>,
+	pub reasoning_signature: Option<String>,
 	pub tool_calls: Option<Vec<crate::chat::ToolCall>>,
 }
 
