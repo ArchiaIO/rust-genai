@@ -458,6 +458,7 @@ impl GeminiAdapter {
 									}
 								}));
 							}
+							ContentPart::Thinking(_) => {}
 						}
 					}
 
@@ -479,6 +480,7 @@ impl GeminiAdapter {
 							// Ignore unsupported parts for Assistant role
 							ContentPart::Binary(_) => {}
 							ContentPart::ToolResponse(_) => {}
+							ContentPart::Thinking(_) => {}
 						}
 					}
 					if !parts_values.is_empty() {
