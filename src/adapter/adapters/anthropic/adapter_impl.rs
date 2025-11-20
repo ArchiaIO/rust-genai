@@ -3,7 +3,7 @@ use crate::adapter::anthropic::AnthropicStreamer;
 use crate::adapter::{Adapter, AdapterKind, ServiceType, WebRequestData};
 use crate::chat::{
 	Binary, BinarySource, ChatOptionsSet, ChatRequest, ChatResponse, ChatRole, ChatStream, ChatStreamResponse,
-	ContentPart, MessageContent, PromptTokensDetails, ReasoningEffort, ToolCall, Usage,
+	ContentPart, MessageContent, PromptTokensDetails, ReasoningEffort, ThinkingContent, ToolCall, Usage,
 };
 use crate::resolver::{AuthData, Endpoint};
 use crate::webc::WebResponse;
@@ -158,7 +158,7 @@ impl Adapter for AnthropicAdapter {
 			// add to the tools vec:
 			if tools.is_none() {
 				tools = Some(vec![tool]);
-			}else{
+			} else {
 				tools.as_mut().unwrap().push(tool);
 			}
 		}
@@ -252,7 +252,13 @@ impl Adapter for AnthropicAdapter {
 					let part = ContentPart::from_text(item.x_take::<String>("text")?);
 					content.push(part);
 				}
-				"thinking" => reasoning_content.push(item.x_take("thinking")?),
+				"thinking" => {
+					let thinking_text: String = item.x_take("thinking")?;
+					let signature = item.x_take::<Option<String>>("signature").ok().flatten();
+					reasoning_content.push(thinking_text.clone());
+					let part = ContentPart::from_thinking_with_signature(thinking_text, signature);
+					content.push(part);
+				}
 				"tool_use" => {
 					let call_id = item.x_take::<String>("id")?;
 					let fn_name = item.x_take::<String>("name")?;
@@ -403,6 +409,9 @@ impl AnthropicAdapter {
 								ContentPart::Text(text) => {
 									values.push(json!({"type": "text", "text": text}));
 								}
+								ContentPart::Thinking(_) => {
+									// Thinking not used in Gemini assistant content
+								}
 								ContentPart::Binary(binary) => {
 									let is_image = binary.is_image();
 									let Binary {
@@ -477,8 +486,10 @@ impl AnthropicAdapter {
 					for part in msg.content {
 						match part {
 							ContentPart::Text(text) => {
-								has_text = true;
-								values.push(json!({"type": "text", "text": text}));
+								if !text.is_empty() {
+									has_text = true;
+									values.push(json!({"type": "text", "text": text}));
+								}
 							}
 							ContentPart::ToolCall(tool_call) => {
 								has_tool_use = true;
@@ -493,6 +504,21 @@ impl AnthropicAdapter {
 							// Unsupported for assistant role in Anthropic message content
 							ContentPart::Binary(_) => {}
 							ContentPart::ToolResponse(_) => {}
+							ContentPart::Thinking(thinking_content) => {
+								// Only include thinking blocks if they have a signature from Anthropic
+								// Signatures are only present when replaying thinking from previous responses
+								let ThinkingContent { text, signature } = thinking_content;
+								if let Some(sig) = signature {
+									if !text.is_empty() {
+										values.push(json!({
+											"type": "thinking",
+											"thinking": text,
+											"signature": sig,
+										}));
+									}
+								}
+								// Skip thinking blocks without signatures - they can't be sent to Anthropic
+							}
 						}
 					}
 
@@ -516,12 +542,15 @@ impl AnthropicAdapter {
 				ChatRole::Tool => {
 					let mut values: Vec<Value> = Vec::new();
 					for part in msg.content {
-						if let ContentPart::ToolResponse(tool_response) = part {
-							values.push(json!({
-								"type": "tool_result",
-								"content": tool_response.content,
-								"tool_use_id": tool_response.call_id,
-							}));
+						match part {
+							ContentPart::ToolResponse(tool_response) => {
+								values.push(json!({
+									"type": "tool_result",
+									"content": tool_response.content,
+									"tool_use_id": tool_response.call_id,
+								}));
+							}
+							_ => {}
 						}
 					}
 					if !values.is_empty() {
@@ -629,4 +658,4 @@ struct AnthropicRequestParts {
 	tools: Option<Vec<Value>>,
 }
 
-// endregion: --- Support
+// endregion:    --- Support

@@ -21,6 +21,51 @@ pub enum ContentPart {
 
 	#[from]
 	ToolResponse(ToolResponse),
+
+	#[from]
+	Thinking(ThinkingContent),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ThinkingContent {
+	pub text: String,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub signature: Option<String>,
+}
+
+impl ThinkingContent {
+	pub fn new(text: impl Into<String>, signature: Option<String>) -> Self {
+		Self {
+			text: text.into(),
+			signature,
+		}
+	}
+
+	pub fn text(&self) -> &str {
+		self.text.as_str()
+	}
+
+	pub fn signature(&self) -> Option<&str> {
+		self.signature.as_deref()
+	}
+}
+
+impl From<String> for ThinkingContent {
+	fn from(text: String) -> Self {
+		Self { text, signature: None }
+	}
+}
+
+impl From<&String> for ThinkingContent {
+	fn from(text: &String) -> Self {
+		Self::from(text.clone())
+	}
+}
+
+impl From<&str> for ThinkingContent {
+	fn from(text: &str) -> Self {
+		Self::from(text.to_string())
+	}
 }
 
 /// Constructors
@@ -28,6 +73,19 @@ impl ContentPart {
 	/// Create a text content part.
 	pub fn from_text(text: impl Into<String>) -> ContentPart {
 		ContentPart::Text(text.into())
+	}
+
+	/// Create a thinking content part (for extended thinking models).
+	pub fn from_thinking(text: impl Into<String>) -> ContentPart {
+		ContentPart::Thinking(ThinkingContent::from(text.into()))
+	}
+
+	pub fn from_thinking_with_signature<T>(text: impl Into<String>, signature: Option<T>) -> ContentPart
+	where
+		T: Into<String>,
+	{
+		let signature = signature.map(Into::into);
+		ContentPart::Thinking(ThinkingContent::new(text.into(), signature))
 	}
 
 	/// Create a binary content part from a base64 payload.
@@ -136,6 +194,45 @@ impl ContentPart {
 			None
 		}
 	}
+
+	/// Borrow the thinking content if present.
+	pub fn as_thinking(&self) -> Option<&str> {
+		if let ContentPart::Thinking(content) = self {
+			Some(content.text())
+		} else {
+			None
+		}
+	}
+
+	pub fn as_thinking_content(&self) -> Option<&ThinkingContent> {
+		if let ContentPart::Thinking(content) = self {
+			Some(content)
+		} else {
+			None
+		}
+	}
+
+	pub fn thinking_signature(&self) -> Option<&str> {
+		self.as_thinking_content().and_then(|content| content.signature())
+	}
+
+	/// Extract the thinking content, consuming the part.
+	pub fn into_thinking(self) -> Option<String> {
+		if let ContentPart::Thinking(content) = self {
+			let ThinkingContent { text, .. } = content;
+			Some(text)
+		} else {
+			None
+		}
+	}
+
+	pub fn into_thinking_content(self) -> Option<ThinkingContent> {
+		if let ContentPart::Thinking(content) = self {
+			Some(content)
+		} else {
+			None
+		}
+	}
 }
 
 /// is_.. Accessors
@@ -170,6 +267,11 @@ impl ContentPart {
 	/// Returns true if this part contains a tool response.
 	pub fn is_tool_response(&self) -> bool {
 		matches!(self, ContentPart::ToolResponse(_))
+	}
+
+	/// Returns true if this part contains thinking content.
+	pub fn is_thinking(&self) -> bool {
+		matches!(self, ContentPart::Thinking(_))
 	}
 }
 

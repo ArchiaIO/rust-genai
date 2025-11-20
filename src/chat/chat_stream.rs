@@ -45,9 +45,7 @@ impl Stream for ChatStream {
 					InterStreamEvent::ToolCallChunk(tool_call) => {
 						ChatStreamEvent::ToolCallChunk(ToolChunk { tool_call })
 					}
-					InterStreamEvent::WebSearchResultsChunk(results) => {
-						ChatStreamEvent::WebSearchResultsChunk(results)
-					}
+					InterStreamEvent::WebSearchResultsChunk(results) => ChatStreamEvent::WebSearchResultsChunk(results),
 					InterStreamEvent::End(inter_end) => ChatStreamEvent::End(inter_end.into()),
 				};
 				Poll::Ready(Some(Ok(chat_event)))
@@ -115,6 +113,9 @@ pub struct StreamEnd {
 
 	/// Captured reasoning content if `ChatOptions.capture_reasoning` is enabled.
 	pub captured_reasoning_content: Option<String>,
+
+	/// Captured reasoning signature if the provider returned one.
+	pub captured_reasoning_signature: Option<String>,
 }
 
 impl From<InterStreamEnd> for StreamEnd {
@@ -142,6 +143,7 @@ impl From<InterStreamEnd> for StreamEnd {
 			captured_usage: inter_end.captured_usage,
 			captured_content,
 			captured_reasoning_content: inter_end.captured_reasoning_content,
+			captured_reasoning_signature: inter_end.captured_reasoning_signature,
 		}
 	}
 }

@@ -447,6 +447,7 @@ impl OpenAIAdapter {
 								// TODO: Probably need to warn if it is a ToolCalls type of content
 								ContentPart::ToolCall(_) => (),
 								ContentPart::ToolResponse(_) => (),
+								ContentPart::Thinking(_) => (),
 							}
 						}
 						messages.push(json! ({"role": "user", "content": values}));
@@ -476,6 +477,7 @@ impl OpenAIAdapter {
 							// TODO: Probably need towarn on this one (probably need to add binary here)
 							ContentPart::Binary(_) => (),
 							ContentPart::ToolResponse(_) => (),
+							ContentPart::Thinking(_) => (),
 						}
 					}
 					let content = texts.join("\n\n");
