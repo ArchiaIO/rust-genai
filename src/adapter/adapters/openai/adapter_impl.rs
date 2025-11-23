@@ -623,6 +623,7 @@ fn parse_tool_call(raw_tool_call: Value) -> Result<ToolCall> {
 		call_id: iterim.id,
 		fn_name,
 		fn_arguments,
+		metadata: None,
 	})
 }
 
