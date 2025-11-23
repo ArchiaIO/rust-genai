@@ -204,6 +204,7 @@ impl futures::Stream for AnthropicStreamer {
 										call_id: id,
 										fn_name: name,
 										fn_arguments,
+										metadata: None,
 									};
 
 									// Add to the captured_tool_calls if chat options say so

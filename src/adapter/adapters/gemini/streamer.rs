@@ -71,6 +71,7 @@ impl futures::Stream for GeminiStreamer {
 								Ok(json_block) => json_block,
 								Err(err) => {
 									tracing::error!("Gemini Adapter Stream Error: {}", err);
+									tracing::error!("Problematic JSON block: {}", block_string);
 									return Poll::Ready(Some(Err(err)));
 								}
 							};

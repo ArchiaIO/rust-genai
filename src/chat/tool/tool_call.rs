@@ -14,4 +14,9 @@ pub struct ToolCall {
 	/// JSON arguments payload as provided by the model.
 	/// Kept as `serde_json::Value` so callers can deserialize into their own types.
 	pub fn_arguments: Value,
+
+	/// Optional provider-specific metadata.
+	/// For example, Gemini 3 requires a `thought_signature` field.
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub metadata: Option<Value>,
 }

@@ -156,14 +156,8 @@ impl Adapter for GeminiAdapter {
 			//     responseMimeType: "application/json",
 			// responseSchema: {
 			payload.x_insert("/generationConfig/responseMimeType", "application/json")?;
-			let mut schema = st_json.schema.clone();
-			schema.x_walk(|parent_map, name| {
-				if name == "additionalProperties" {
-					parent_map.remove("additionalProperties");
-				}
-				true
-			});
-			payload.x_insert("/generationConfig/responseSchema", schema)?;
+			let cleaned_schema = Self::clean_schema_for_gemini(st_json.schema.clone());
+			payload.x_insert("/generationConfig/responseSchema", cleaned_schema)?;
 		}
 
 		// -- Add supported ChatOptions
@@ -264,6 +258,36 @@ impl Adapter for GeminiAdapter {
 
 /// Support functions for GeminiAdapter
 impl GeminiAdapter {
+	/// Clean JSON schema to be compatible with Gemini API
+	/// Removes fields like $schema, definitions, $ref, additionalProperties that Gemini doesn't support
+	/// Also removes enum from non-string types (Gemini only allows enum for STRING type)
+	fn clean_schema_for_gemini(mut schema: Value) -> Value {
+		schema.x_walk(|parent_map, name| {
+			match name {
+				"$schema" | "definitions" | "$ref" | "additionalProperties" => {
+					parent_map.remove(name);
+				}
+				_ => {}
+			}
+
+			// Remove enum from non-string types (parent_map is already a Map)
+			if parent_map.contains_key("enum") {
+				if let Some(type_val) = parent_map.get("type") {
+					// Only keep enum if type is explicitly "string"
+					if type_val.as_str() != Some("string") {
+						parent_map.remove("enum");
+					}
+				} else {
+					// No type field, remove enum to be safe
+					parent_map.remove("enum");
+				}
+			}
+
+			true
+		});
+		schema
+	}
+
 	pub(super) fn body_to_gemini_chat_response(model_iden: &ModelIden, mut body: Value) -> Result<GeminiChatResponse> {
 		// If the body has an `error` property, then it is assumed to be an error.
 		if body.get("error").is_some() {
@@ -294,12 +318,19 @@ impl GeminiAdapter {
 
 		for mut part in parts {
 			// -- Capture eventual function call
-			if let Ok(fn_call_value) = part.x_take::<Value>("functionCall") {
+			if let Ok(mut fn_call_value) = part.x_take::<Value>("functionCall") {
+				// Capture thoughtSignature if present (required for Gemini 3)
+				let metadata = fn_call_value
+					.x_take::<Value>("thoughtSignature")
+					.ok()
+					.map(|sig| json!({"thoughtSignature": sig}));
+
 				let tool_call = ToolCall {
 					// NOTE: Gemini does not have call_id so, use name
 					call_id: fn_call_value.x_get("name").unwrap_or("".to_string()), // TODO: Handle this, gemini does not return the call_id
 					fn_name: fn_call_value.x_get("name").unwrap_or("".to_string()),
 					fn_arguments: fn_call_value.x_get("args").unwrap_or(Value::Null),
+					metadata,
 				};
 				content.push(GeminiChatContent::ToolCall(tool_call))
 			}
@@ -473,11 +504,21 @@ impl GeminiAdapter {
 							ContentPart::Text(text) => parts_values.push(json!({"text": text})),
 							ContentPart::Binary(_) => {}
 							ContentPart::ToolCall(tool_call) => {
+								// Include thoughtSignature if present in metadata (required for Gemini 3)
+								// If no metadata, use dummy signature to skip validation (for cross-model history)
+								let signature = tool_call
+									.metadata
+									.as_ref()
+									.and_then(|m| m.get("thoughtSignature"))
+									.cloned()
+									.unwrap_or_else(|| json!("skip_thought_signature_validator"));
+
 								parts_values.push(json!({
 									"functionCall": {
 										"name": tool_call.fn_name,
 										"args": tool_call.fn_arguments,
-									}
+									},
+									"thoughtSignature": signature
 								}));
 							}
 							ContentPart::ToolResponse(_) => {}
@@ -495,11 +536,21 @@ impl GeminiAdapter {
 					for part in msg.content {
 						match part {
 							ContentPart::ToolCall(tool_call) => {
+								// Include thoughtSignature if present in metadata (required for Gemini 3)
+								// If no metadata, use dummy signature to skip validation (for cross-model history)
+								let signature = tool_call
+									.metadata
+									.as_ref()
+									.and_then(|m| m.get("thoughtSignature"))
+									.cloned()
+									.unwrap_or_else(|| json!("skip_thought_signature_validator"));
+
 								parts_values.push(json!({
 									"functionCall": {
 										"name": tool_call.fn_name,
 										"args": tool_call.fn_arguments,
-									}
+									},
+									"thoughtSignature": signature
 								}));
 							}
 							ContentPart::ToolResponse(tool_response) => {
@@ -549,11 +600,13 @@ impl GeminiAdapter {
 				}
 				// -- otherwise, user tool
 				else {
+					// Clean the schema to remove unsupported JSON Schema fields
+					let cleaned_schema = req_tool.schema.clone().map(|schema| Self::clean_schema_for_gemini(schema));
 					function_declarations.push(json! {
 						{
 							"name": req_tool.name,
 							"description": req_tool.description,
-							"parameters": req_tool.schema,
+							"parameters": cleaned_schema,
 						}
 					})
 				}
@@ -597,3 +650,109 @@ struct GeminiChatRequestParts {
 }
 
 // endregion: --- Support
+
+// region:    --- Tests
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use serde_json::json;
+
+	#[test]
+	fn test_clean_schema_for_gemini_removes_unsupported_fields() {
+		let schema = json!({
+			"$schema": "http://json-schema.org/draft-07/schema#",
+			"type": "object",
+			"properties": {
+				"city": {
+					"type": "string",
+					"description": "The city name"
+				},
+				"country": {
+					"type": "string",
+					"description": "The country"
+				}
+			},
+			"required": ["city", "country"],
+			"additionalProperties": false,
+			"definitions": {
+				"someDefinition": {
+					"type": "string"
+				}
+			}
+		});
+
+		let cleaned = GeminiAdapter::clean_schema_for_gemini(schema);
+
+		// Should remove $schema, additionalProperties, and definitions
+		assert!(cleaned.get("$schema").is_none());
+		assert!(cleaned.get("additionalProperties").is_none());
+		assert!(cleaned.get("definitions").is_none());
+
+		// Should keep valid fields
+		assert!(cleaned.get("type").is_some());
+		assert!(cleaned.get("properties").is_some());
+		assert!(cleaned.get("required").is_some());
+	}
+
+	#[test]
+	fn test_clean_schema_for_gemini_removes_nested_refs() {
+		let schema = json!({
+			"type": "object",
+			"properties": {
+				"items": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/Item"
+					}
+				},
+				"metadata": {
+					"type": "object",
+					"properties": {
+						"value": {
+							"$ref": "#/definitions/Value"
+						}
+					},
+					"additionalProperties": true
+				}
+			}
+		});
+
+		let cleaned = GeminiAdapter::clean_schema_for_gemini(schema);
+
+		// Should remove nested $ref fields
+		assert!(cleaned["properties"]["items"]["items"].get("$ref").is_none());
+		assert!(cleaned["properties"]["metadata"]["properties"]["value"].get("$ref").is_none());
+
+		// Should remove nested additionalProperties
+		assert!(cleaned["properties"]["metadata"].get("additionalProperties").is_none());
+	}
+
+	#[test]
+	fn test_clean_schema_for_gemini_preserves_valid_schema() {
+		let schema = json!({
+			"type": "object",
+			"properties": {
+				"name": {
+					"type": "string"
+				},
+				"age": {
+					"type": "integer",
+					"minimum": 0
+				}
+			},
+			"required": ["name"]
+		});
+
+		let cleaned = GeminiAdapter::clean_schema_for_gemini(schema.clone());
+
+		// Should preserve all valid fields
+		assert_eq!(cleaned["type"], "object");
+		assert_eq!(cleaned["properties"]["name"]["type"], "string");
+		assert_eq!(cleaned["properties"]["age"]["type"], "integer");
+		assert_eq!(cleaned["properties"]["age"]["minimum"], 0);
+		assert_eq!(cleaned["required"][0], "name");
+	}
+}
+
+// endregion: --- Tests

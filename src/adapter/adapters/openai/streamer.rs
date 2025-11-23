@@ -69,6 +69,7 @@ impl futures::Stream for OpenAIStreamer {
 										call_id,
 										fn_name,
 										fn_arguments,
+										metadata,
 									} = tool_call;
 									// parse fn_arguments if needed
 									let fn_arguments = match fn_arguments {
@@ -86,6 +87,7 @@ impl futures::Stream for OpenAIStreamer {
 										call_id,
 										fn_name,
 										fn_arguments,
+										metadata,
 									}
 								})
 								.collect();
@@ -178,6 +180,7 @@ impl futures::Stream for OpenAIStreamer {
 										call_id,
 										fn_name,
 										fn_arguments: serde_json::Value::String(arguments.clone()),
+										metadata: None,
 									};
 
 									// Capture the tool call if enabled
