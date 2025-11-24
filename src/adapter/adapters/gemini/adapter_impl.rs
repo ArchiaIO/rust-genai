@@ -35,7 +35,7 @@ const REASONING_HIGH: u32 = 24000;
 //   -X POST 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=YOUR_API_KEY'
 
 impl GeminiAdapter {
-	pub const API_KEY_DEFAULT_ENV_NAME: &str = "GEMINI_API_KEY";
+	pub const API_KEY_DEFAULT_ENV_NAME: &'static str = "GEMINI_API_KEY";
 }
 
 impl Adapter for GeminiAdapter {
@@ -439,12 +439,13 @@ impl GeminiAdapter {
 
 		// -- Build
 		for msg in chat_req.messages {
-			match msg.role {
+			let (target_role, parts) = match msg.role {
 				// For now, system goes as "user" (later, we might have adapter_config.system_to_user_impl)
 				ChatRole::System => {
 					if let Some(content) = msg.content.into_joined_texts() {
 						systems.push(content);
 					}
+					continue;
 				}
 				ChatRole::User => {
 					let mut parts_values: Vec<Value> = Vec::new();
@@ -494,8 +495,7 @@ impl GeminiAdapter {
 							}
 						}
 					}
-
-					contents.push(json!({"role": "user", "parts": parts_values}));
+					("user", parts_values)
 				}
 				ChatRole::Assistant => {
 					let mut parts_values: Vec<Value> = Vec::new();
@@ -527,9 +527,7 @@ impl GeminiAdapter {
 							}
 						}
 					}
-					if !parts_values.is_empty() {
-						contents.push(json!({"role": "model", "parts": parts_values}));
-					}
+					("model", parts_values)
 				}
 				ChatRole::Tool => {
 					let mut parts_values: Vec<Value> = Vec::new();
@@ -572,10 +570,26 @@ impl GeminiAdapter {
 							}
 						}
 					}
+					("user", parts_values)
+				}
+			};
 
-					contents.push(json!({"role": "user", "parts": parts_values}));
+			if parts.is_empty() {
+				continue;
+			}
+
+			// -- Coalesce with previous message if same role
+			if let Some(last_msg) = contents.last_mut() {
+				if last_msg["role"] == target_role {
+					if let Some(last_parts) = last_msg.get_mut("parts").and_then(|p| p.as_array_mut()) {
+						last_parts.extend(parts);
+						continue;
+					}
 				}
 			}
+
+			// -- Otherwise push new message
+			contents.push(json!({"role": target_role, "parts": parts}));
 		}
 
 		let system = if !systems.is_empty() {
